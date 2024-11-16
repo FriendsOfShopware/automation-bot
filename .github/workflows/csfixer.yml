@@ -27,25 +27,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: "${{ inputs.owner }}/${{ inputs.repo }}"
-          token: "${{  steps.generate-token.outputs.token }}"
           ref: "${{ inputs.branch }}"
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "${{ inputs.php-version }}"
           tools: php-cs-fixer
+
       - name: Run CSFixer
         run: |
           php-cs-fixer fix . --rules="${{ inputs.rules }}"
           if ! git diff HEAD --quiet; then
-            githubUsername="${{ vars.GITHUB_USERNAME }}"
-            githubId="${{ vars.GITHUB_USER_ID }}"
+            githubUsername="frosh-automation"
+            githubId="188718289"
             githubEmail="${githubId}+${githubUsername}[bot]@users.noreply.github.com"
             commitSha=$(git rev-parse --short HEAD)
             git config --global user.name "${githubUsername}"
             git config --global user.email "${githubEmail}"
             git add .
-            git commit -m "Run CSFixer"
+            git commit -m "fix: code-style"
             git push origin "HEAD:${{ inputs.branch }}"
           fi
 
