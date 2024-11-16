@@ -12,7 +12,7 @@ runs:
       id: token
       shell: bash
       run: |
-        echo "token=$(curl -sLS --fail "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN")" >> $GITHUB_OUTPUT
+        echo "token=$(curl -sLS --fail "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | jq -r .value)" >> $GITHUB_OUTPUT
 
     - name: Get scoped token
       shell: bash
