@@ -22,7 +22,7 @@ app.post('/webhook', async c => {
 	})
 
 	webhooks.on('issue_comment.created', async ({ payload }) => {
-		if (payload.comment.user?.type === 'Bot') {
+		if (payload.comment.user?.type === 'Bot' || payload.issue.pull_request === undefined) {
 			return
 		}
 
@@ -32,22 +32,17 @@ app.post('/webhook', async c => {
 
 		const command = payload.comment.body.trim()
 
-		console.log('command', command)
-
 		if (!command.startsWith('@frosh-automation')) {
 			return
 		}
 
 		const [_, workflow] = command.split(' ')
-		console.log('workflow', workflow)
 
 		const workflowPath = commandToWorkflow.get(workflow)
 
 		if (!workflowPath) {
 			return
 		}
-
-		console.log('set reaction')
 
 		const octo = getOctoClient(c.env)
 
@@ -56,7 +51,25 @@ app.post('/webhook', async c => {
 			repo: payload.repository.name,
 			comment_id: payload.comment.id,
 			content: '+1',
-		})
+		});
+
+		const pr = await octo.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+			owner: payload.repository.owner.login,
+			repo: payload.repository.name,
+			pull_number: payload.issue.number,
+		});
+
+		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
+			owner: 'FriendsOfShopware',
+			repo: 'automation-bot',
+			workflow_id: 128346036,
+			ref: 'main',
+			inputs: {
+				owner: pr.data.head.repo!!.owner.login,
+				repo: pr.data.head.repo!!.name,
+				branch: pr.data.head.ref,
+			}
+		});
 	});
 
 	await webhooks.verifyAndReceive({

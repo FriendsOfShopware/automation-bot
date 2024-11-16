@@ -20,10 +20,17 @@ on:
         description: 'Rules to use'
         required: true
         default: "@PER-CS2.0,no_unused_imports"
+
+permissions:
+  id-token: write
+
 jobs:
   fix_codestyle:
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch scoped token
+        uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
+
       - uses: actions/checkout@v4
         with:
           repository: "${{ inputs.owner }}/${{ inputs.repo }}"
