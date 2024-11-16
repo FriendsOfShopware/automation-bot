@@ -1,3 +1,4 @@
+name: PHPCSFixer
 on:
   workflow_dispatch:
     inputs:
