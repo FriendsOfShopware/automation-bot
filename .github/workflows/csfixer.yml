@@ -24,13 +24,6 @@ jobs:
   fix_codestyle:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: "${{ vars.APP_ID }}"
-          private-key: "${{ secrets.APP_PRIVATE_KEY }}"
-          repositories: "${{ inputs.repo }}"
       - uses: actions/checkout@v4
         with:
           repository: "${{ inputs.owner }}/${{ inputs.repo }}"
