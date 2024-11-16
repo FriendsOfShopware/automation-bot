@@ -15,7 +15,7 @@ on:
       php-version:
         description: 'PHP version to use'
         required: true
-        default: 8.2
+        default: "8.2"
       rules:
         description: 'Rules to use'
         required: true
@@ -42,7 +42,6 @@ jobs:
             githubUsername="frosh-automation"
             githubId="188718289"
             githubEmail="${githubId}+${githubUsername}[bot]@users.noreply.github.com"
-            commitSha=$(git rev-parse --short HEAD)
             git config --global user.name "${githubUsername}"
             git config --global user.email "${githubEmail}"
             git add .
