@@ -11,8 +11,10 @@ runs:
     - name: Create OIDC token
       id: token
       shell: bash
-      run: echo "token=$(curl -sLS --fail "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN)" >> $GITHUB_OUTPUT
+      run: |
+        echo "token=$(curl -sLS --fail "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN)" >> $GITHUB_OUTPUT
 
     - name: Get scoped token
       shell: bash
-      run: curl -X POST --fail https://github-bot.fos.gg/api/token/generate -H 'Authorization: ${{ steps.token.outputs.token }}'
+      run: |
+        curl -X POST --fail https://github-bot.fos.gg/api/token/generate -H 'Authorization: ${{ steps.token.outputs.token }}'
