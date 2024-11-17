@@ -1,4 +1,4 @@
-import { getState } from "@actions/core";
+import { getInput, getState } from "@actions/core";
 
 async function run() {
     const oidcToken = getState('oidc');
