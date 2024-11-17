@@ -1,10 +1,10 @@
-import { getInput, getState } from "@actions/core";
+import { getInput, getState, setFailed } from "@actions/core";
 
 async function run() {
     const oidcToken = getState('oidc');
     const accessToken = getState('accessToken');
 
-    await (await fetch(`https://github-bot.fos.gg/api/token/delete/${getInput('id')}`, {
+    const resp = await (await fetch(`https://github-bot.fos.gg/api/token/delete/${getInput('id')}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -12,6 +12,10 @@ async function run() {
             'GitHub-Bot-Access-Token': accessToken,
         },
     })).json();
+
+    if (!resp.ok) {
+        setFailed(JSON.stringify(resp));
+    }
 }
 
 run();
