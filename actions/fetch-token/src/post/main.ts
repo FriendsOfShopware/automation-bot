@@ -4,7 +4,7 @@ async function run() {
     const oidcToken = getState('oidc');
     const accessToken = getState('accessToken');
 
-    await (await fetch(`https://github-bot.fos.gg/api/token/generate/${getInput('id')}`, {
+    await (await fetch(`https://github-bot.fos.gg/api/token/delete/${getInput('id')}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
