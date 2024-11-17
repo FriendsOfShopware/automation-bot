@@ -5,6 +5,15 @@ branding:
   color: "blue"
   icon: "download"
 
+inputs:
+  id:
+    required: true
+
+outputs:
+  token:
+    description: "Token"
+    value: ${{ steps.random-number-generator.outputs.random-number }}
+
 runs:
   using: "composite"
   steps:
@@ -17,4 +26,4 @@ runs:
     - name: Get scoped token
       shell: bash
       run: |
-        curl -X POST --fail https://github-bot.fos.gg/api/token/generate -H 'Authorization: ${{ steps.token.outputs.token }}'
+        echo "token=$(curl -X POST --fail "https://github-bot.fos.gg/api/token/generate/${{ inputs.id }}" -H 'Authorization: ${{ steps.token.outputs.token }}')" >> $GITHUB_OUTPUT

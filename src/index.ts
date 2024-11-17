@@ -2,6 +2,7 @@ import { Hono } from "hono/tiny";
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/core";
 import { Webhooks } from "@octokit/webhooks";
+import { getJwks, parseJwt, getKey, importKey } from "@cfworker/jwt";
 
 // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
 const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
@@ -59,12 +60,21 @@ app.post('/webhook', async c => {
 			pull_number: payload.issue.number,
 		});
 
+		const uuid = crypto.randomUUID()
+
+		await c.env.kv.put(uuid, JSON.stringify({
+			owner: payload.repository.owner.login,
+			repo: payload.repository.name,
+			branch: pr.data.head.ref,
+		}), {expirationTtl: 10 * 60})
+
 		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
 			owner: 'FriendsOfShopware',
 			repo: 'automation-bot',
 			workflow_id: 128346036,
 			ref: 'main',
 			inputs: {
+				id: uuid,
 				owner: pr.data.head.repo!!.owner.login,
 				repo: pr.data.head.repo!!.name,
 				branch: pr.data.head.ref,
@@ -93,5 +103,51 @@ function getOctoClient(env: Env) {
 		},
 	})
 }
+
+app.post('/api/token/generate/:id', async c => {
+	const authHeader = c.req.header('Authorization')
+
+	if (!authHeader) {
+		return c.json({ error: 'Authorization header is missing' }, 401)
+	}
+
+	const check = await parseJwt({ jwt: authHeader, audience: 'github-bot.fos.gg', issuer: 'https://token.actions.githubusercontent.com', resolveKey: async (key) => await getKey(key)})
+
+	if (!check.valid) {
+		return c.json({ error: 'Invalid token' }, 401)
+	}
+
+	const payload = check.payload as unknown as { actor: string}
+
+	if (payload.actor !== 'frosh-automation[bot]') {
+		return c.json({ error: 'Invalid actor' }, 401)
+	}
+
+	const id = c.req.param('id');
+
+	if (!id) {
+		return c.json({ error: 'ID is missing' }, 400)
+	}
+
+	const data = await c.env.kv.get(id)
+
+	if (!data) {
+		return c.json({ error: 'ID not found' }, 404)
+	}
+
+	const { owner, repo } = JSON.parse(data)
+
+	const octo = getOctoClient(c.env)
+
+	const tokenResponse = await octo.request('POST /app/installations/{installation_id}/access_tokens', {
+		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
+		permissions: {
+			contents: 'write',
+		},
+		repositories: [`${owner}/${repo}`],
+	});
+
+	return c.json({ token: tokenResponse.data.token })
+});
 
 export default app;

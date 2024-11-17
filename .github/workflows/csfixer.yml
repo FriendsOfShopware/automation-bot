@@ -2,6 +2,9 @@ name: PHPCSFixer
 on:
   workflow_dispatch:
     inputs:
+      id:
+        description: "Execution ID"
+        required: true
       owner:
         description: 'Owner of the repo'
         required: true
@@ -30,6 +33,8 @@ jobs:
     steps:
       - name: Fetch scoped token
         uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
+        with:
+          id: "${{ inputs.id }}"
 
       - uses: actions/checkout@v4
         with:
