@@ -15,16 +15,6 @@ outputs:
     value: ${{ steps.gh-token.outputs.token }}
 
 runs:
-  using: "composite"
-  steps:
-    - name: Create OIDC token
-      id: token
-      shell: bash
-      run: |
-        echo "token=$(curl -sLS --fail "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | jq -r .value)" >> $GITHUB_OUTPUT
-
-    - name: Get scoped token
-      id: gh-token
-      shell: bash
-      run: |
-        echo "token=$(curl -X POST --fail "https://github-bot.fos.gg/api/token/generate/${{ inputs.id }}" -H 'Authorization: ${{ steps.token.outputs.token }}' | jq -r .token)" >> $GITHUB_OUTPUT
+  using: 'node20'
+  main: 'dist/main/main.js'
+  post: 'dist/post/main.js'
