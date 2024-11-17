@@ -12,7 +12,7 @@ inputs:
 outputs:
   token:
     description: "Token"
-    value: ${{ steps.random-number-generator.outputs.random-number }}
+    value: ${{ steps.gh-token.outputs.token }}
 
 runs:
   using: "composite"
@@ -24,6 +24,7 @@ runs:
         echo "token=$(curl -sLS --fail "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-bot.fos.gg" -H "User-Agent: actions/oidc-client" -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | jq -r .value)" >> $GITHUB_OUTPUT
 
     - name: Get scoped token
+      id: gh-token
       shell: bash
       run: |
         echo "token=$(curl -X POST --fail "https://github-bot.fos.gg/api/token/generate/${{ inputs.id }}" -H 'Authorization: ${{ steps.token.outputs.token }}')" >> $GITHUB_OUTPUT
