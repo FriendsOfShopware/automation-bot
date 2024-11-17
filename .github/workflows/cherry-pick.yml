@@ -1,0 +1,25 @@
+name: Backport PR
+on:
+  workflow_dispatch:
+    inputs:
+      pr-id:
+        description: 'PR ID to backport'
+        required: true
+      branch:
+        description: 'Branch to backport to'
+        required: true
+jobs:
+  backport_pr:
+    runs-on: ubuntu-latest
+    name: Backport PR
+    steps:
+      - uses: actions/setup-node@v4
+        name: Setup Node
+      - name: Fetch scoped token
+        id: fetch-token
+        uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
+      - name: Backport
+        run: |
+            npm install -g backport
+            backport --pr "${{ inputs.pr-id }}" --branch "${{ inputs.branch }}" --token "${{ steps.fetch-token.outputs.token }}"
+
