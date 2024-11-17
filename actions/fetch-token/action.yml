@@ -12,7 +12,6 @@ inputs:
 outputs:
   token:
     description: "Token"
-    value: ${{ steps.gh-token.outputs.token }}
 
 runs:
   using: 'node20'
