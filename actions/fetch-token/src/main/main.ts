@@ -1,4 +1,5 @@
 import { getInput, saveState, setFailed, setOutput } from '@actions/core';
+import { info } from 'console';
 
 const actionsToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
 const actionsUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -29,7 +30,9 @@ async function run() {
         const res = await fetchWithRetry(`${actionsUrl}&audience=github-bot.fos.gg`, { headers: { 'Authorization': `Bearer ${actionsToken}` } }, 5);
         const json = await res.json();
 
-        const data = await (await fetch(`https://github-bot.fos.gg/api/token/generate/${getInput('id')}`, {
+        info('Got OIDC token');
+
+        const data = await (await fetch(`https://github-bot.fos.gg/api/token/generate/${getInput('id', {required: true})}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -38,7 +41,7 @@ async function run() {
         })).json();
 
         setOutput('token', data.token);
-        saveState('id', getInput('id'));
+        saveState('id', getInput('id', {required: true}));
         saveState('oidc', json.value);
         saveState('accessToken', data.token);
     } catch (e) {
