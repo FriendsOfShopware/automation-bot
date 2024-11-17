@@ -27,4 +27,4 @@ runs:
       id: gh-token
       shell: bash
       run: |
-        echo "token=$(curl -X POST --fail "https://github-bot.fos.gg/api/token/generate/${{ inputs.id }}" -H 'Authorization: ${{ steps.token.outputs.token }}')" >> $GITHUB_OUTPUT
+        echo "token=$(curl -X POST --fail "https://github-bot.fos.gg/api/token/generate/${{ inputs.id }}" -H 'Authorization: ${{ steps.token.outputs.token }}' | jq -r .token)" >> $GITHUB_OUTPUT
