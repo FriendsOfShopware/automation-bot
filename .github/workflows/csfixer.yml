@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch scoped token
+        id: fetch-token
         uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
         with:
           id: "${{ inputs.id }}"
@@ -40,6 +41,7 @@ jobs:
         with:
           repository: "${{ inputs.owner }}/${{ inputs.repo }}"
           ref: "${{ inputs.branch }}"
+          token: ${{ steps.fetch-token.outputs.token }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2

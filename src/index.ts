@@ -63,9 +63,7 @@ app.post('/webhook', async c => {
 		const uuid = crypto.randomUUID()
 
 		await c.env.kv.put(uuid, JSON.stringify({
-			owner: payload.repository.owner.login,
-			repo: payload.repository.name,
-			branch: pr.data.head.ref,
+			repository_id: pr.data.head.repo!!.id,
 		}), {expirationTtl: 10 * 60})
 
 		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
@@ -135,16 +133,24 @@ app.post('/api/token/generate/:id', async c => {
 		return c.json({ error: 'ID not found' }, 404)
 	}
 
-	const { owner, repo } = JSON.parse(data)
+	const { repository_id } = JSON.parse(data)
 
 	const octo = getOctoClient(c.env)
+
+	console.log({
+		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
+		permissions: {
+			contents: 'write',
+		},
+		repository_ids: [repository_id],
+	});
 
 	const tokenResponse = await octo.request('POST /app/installations/{installation_id}/access_tokens', {
 		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
 		permissions: {
 			contents: 'write',
 		},
-		repositories: [`${owner}/${repo}`],
+		repository_ids: [repository_id],
 	});
 
 	return c.json({ token: tokenResponse.data.token })
