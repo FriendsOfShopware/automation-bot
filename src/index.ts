@@ -2,7 +2,7 @@ import { Hono } from "hono/tiny";
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/core";
 import { Webhooks } from "@octokit/webhooks";
-import { getJwks, parseJwt, getKey, importKey } from "@cfworker/jwt";
+import { parseJwt, getKey } from "@cfworker/jwt";
 
 // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
 const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
@@ -12,7 +12,7 @@ const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
 ]);
 
 const commandToWorkflow = new Map([
-	['fix-cs', '.github/workflows/fix-cs.yml'],
+	['fix-cs', '.github/workflows/csfixer.yml'],
 ]);
 
 const app = new Hono<{ Bindings: Env }>()
@@ -60,6 +60,18 @@ app.post('/webhook', async c => {
 			pull_number: payload.issue.number,
 		});
 
+		const workflows = await octo.request('GET /repos/{owner}/{repo}/actions/workflows', {
+			owner: 'FriendsOfShopware',
+			repo: 'automation-bot',
+		});
+
+		const workflowId = workflows.data.workflows.find(w => w.path === workflowPath)?.id
+
+		if (!workflowId) {
+			console.log('Workflow not found')
+			return
+		}
+
 		const uuid = crypto.randomUUID()
 
 		await c.env.kv.put(uuid, JSON.stringify({
@@ -69,7 +81,7 @@ app.post('/webhook', async c => {
 		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
 			owner: 'FriendsOfShopware',
 			repo: 'automation-bot',
-			workflow_id: 128346036,
+			workflow_id: workflowId,
 			ref: 'main',
 			inputs: {
 				id: uuid,
@@ -137,14 +149,6 @@ app.post('/api/token/generate/:id', async c => {
 
 	const octo = getOctoClient(c.env)
 
-	console.log({
-		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
-		permissions: {
-			contents: 'write',
-		},
-		repository_ids: [repository_id],
-	});
-
 	const tokenResponse = await octo.request('POST /app/installations/{installation_id}/access_tokens', {
 		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
 		permissions: {
@@ -154,6 +158,63 @@ app.post('/api/token/generate/:id', async c => {
 	});
 
 	return c.json({ token: tokenResponse.data.token })
+});
+
+app.post('/api/token/delete/:id', async c => {
+	const authHeader = c.req.header('Authorization')
+
+	if (!authHeader) {
+		return c.json({ error: 'Authorization header is missing' }, 401)
+	}
+
+	const check = await parseJwt({ jwt: authHeader, audience: 'github-bot.fos.gg', issuer: 'https://token.actions.githubusercontent.com', resolveKey: async (key) => await getKey(key)})
+
+	if (!check.valid) {
+		return c.json({ error: 'Invalid token' }, 401)
+	}
+
+	const payload = check.payload as unknown as { actor: string}
+
+	if (payload.actor !== 'frosh-automation[bot]') {
+		return c.json({ error: 'Invalid actor' }, 401)
+	}
+
+	const id = c.req.param('id');
+
+	if (!id) {
+		return c.json({ error: 'ID is missing' }, 400)
+	}
+
+	const data = await c.env.kv.get(id)
+
+	if (!data) {
+		return c.json({ error: 'ID not found' }, 404)
+	}
+
+	const githubToken = c.req.header('GitHub-Bot-Access-Token')
+
+	if (!githubToken) {
+		return c.json({ error: 'GitHub-Bot-Access-Token header is missing' }, 401)
+	}
+
+	const octo = getOctoClient(c.env)
+
+	const resp = await fetch('https://api.github.com/installation/token', {
+		method: 'DELETE',
+		headers: {
+			'Authorization': `Bearer ${githubToken}`,
+			'User-Agent': 'frosh-automation[bot]',
+			'Accept': 'application/vnd.github.v3+json',
+		},
+	})
+
+	if (!resp.ok) {
+		return c.json({ error: 'Failed to delete token' }, 500)
+	}
+
+	await c.env.kv.delete(id)
+
+	return c.json({ ok: true })
 });
 
 export default app;
