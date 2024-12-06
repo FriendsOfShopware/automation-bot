@@ -57,9 +57,10 @@ jobs:
           service: shopware
 
       - name: Wait for Container Startup  
-        run: |  
+        run: |
+          set +e
           while true; do  
-            kubectl exec shopware -- bin/console plugin:list  
+            kubectl exec pod/shopware -- bin/console plugin:list  
               if [ $? -eq 0 ]; then  
                 echo "Command succeeded!"  
                 break  
