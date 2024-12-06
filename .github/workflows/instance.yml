@@ -40,6 +40,8 @@ jobs:
       - name: Create a Namespace cluster
         id: create-cluster
         uses: namespacelabs/nscloud-cluster-action@v0
+        with:
+          preview: true
 
       - name: Deploy NGINX
         run: |
@@ -54,7 +56,15 @@ jobs:
           namespace: default
           service: shopware
 
+      - name: Wait for Container Startup  
+        run: |  
+          until kubectl get pods -l app=shopware -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do  
+            echo "Waiting for Shopware pod to be ready..."  
+            kubectl get pods -l app=shopware  
+            sleep 10  
+          done  
+
       - name: Fix APP_URL
         run: |
-          kubectl exec shopware -- mariadb -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.preview-url }}"'
-          kubectl exec shopware -- bin/console cache:clear:all
+          kubectl exec pod/shopware -- mariadb -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.preview-url }}"'
+          kubectl exec pod/shopware -- bin/console cache:clear:all
