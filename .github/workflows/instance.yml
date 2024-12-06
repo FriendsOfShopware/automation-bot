@@ -15,6 +15,10 @@ on:
         description: 'Branch to run against'
         required: true
         default: main
+      php-version:
+        description: 'PHP version to use'
+        required: true
+        default: "8.2"
       baseRepo:
         description: 'baseRepo'
         required: true
@@ -29,13 +33,33 @@ jobs:
   create-instance:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Shopware CLI
+        uses: FriendsOfShopware/shopware-cli-action@v1
+  
       - name: Fetch scoped token
         id: fetch-token
         uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
         with:
           id: "${{ inputs.id }}"
 
-      - uses: namespacelabs/nscloud-setup@v0
+      - name: Clone Plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+          repository: "${{ inputs.owner }}/${{ inputs.repo }}"
+          ref: "${{ inputs.branch }}"
+          token: ${{ steps.fetch-token.outputs.token }}
+
+      - name: Build Plugin
+        run: shopware-cli extension build plugin
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "${{ inputs.php-version }}"
+
+      - name: Setup Namespace CLI
+        uses: namespacelabs/nscloud-setup@v0
 
       - name: Create a Namespace cluster
         id: create-cluster
@@ -43,7 +67,7 @@ jobs:
         with:
           preview: true
 
-      - name: Deploy NGINX
+      - name: Deploy Shopware
         run: |
           kubectl run shopware --image=ghcr.io/shopwarelabs/devcontainer/symfony-flex:6.6.8-8.3
           kubectl expose pod shopware --type=LoadBalancer --port=8000
@@ -73,3 +97,9 @@ jobs:
         run: |
           kubectl exec pod/shopware -- mariadb shopware -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.outputs.preview-url }}"'
           kubectl exec pod/shopware -- bin/console cache:clear:all
+
+      - name: Copy plugin into Container
+        run: |
+          kubectl cp plugin pod/shopware:/var/www/html/custom/plugins/plugin
+          kubectl exec pod/shopware -- bin/console plugin:refresh
+          kubectl exec pod/shopware -- bin/console plugin:install --activate ${{ inputs.repo }}
