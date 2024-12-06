@@ -15,6 +15,12 @@ on:
         description: 'Branch to run against'
         required: true
         default: main
+      baseRepo:
+        description: 'baseRepo'
+        required: true
+      prNumber:
+        description: 'PR number'
+        required: true
 
 permissions:
   id-token: write
