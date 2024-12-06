@@ -100,6 +100,6 @@ jobs:
 
       - name: Copy plugin into Container
         run: |
-          kubectl cp plugin pod/shopware:/var/www/html/custom/plugins/plugin
+          kubectl cp plugin shopware:/var/www/html/custom/plugins/plugin
           kubectl exec pod/shopware -- bin/console plugin:refresh
           kubectl exec pod/shopware -- bin/console plugin:install --activate ${{ inputs.repo }}
