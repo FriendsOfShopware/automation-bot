@@ -103,3 +103,17 @@ jobs:
           kubectl cp plugin shopware:/var/www/html/custom/plugins/plugin
           kubectl exec pod/shopware -- bin/console plugin:refresh
           kubectl exec pod/shopware -- bin/console plugin:install --activate ${{ inputs.repo }}
+
+      - name: Create comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ inputs.prNumber }}
+          repository: ${{ inputs.baseRepo }}
+          body: |
+            Hey :wave:,
+
+            I have created for you an Shopware Instalation with the current changes made here.
+
+            You can access the Shop here: ${{ steps.expose.outputs.preview-url }}
+
+            The URL is only for FriendsOfShopware members.
