@@ -71,5 +71,5 @@ jobs:
 
       - name: Fix APP_URL
         run: |
-          kubectl exec pod/shopware -- mariadb -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.outputs.preview-url }}"'
+          kubectl exec pod/shopware -- mariadb shopware -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.outputs.preview-url }}"'
           kubectl exec pod/shopware -- bin/console cache:clear:all
