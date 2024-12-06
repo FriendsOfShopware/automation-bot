@@ -13,6 +13,7 @@ const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
 
 const commandToWorkflow = new Map([
 	['fix-cs', '.github/workflows/csfixer.yml'],
+	['create-instance', '.github/workflows/instance.yml'],
 ]);
 
 const app = new Hono<{ Bindings: Env }>()
@@ -75,7 +76,7 @@ app.post('/webhook', async c => {
 		const uuid = crypto.randomUUID()
 
 		await c.env.kv.put(uuid, JSON.stringify({
-			repository_id: pr.data.head.repo!!.id,
+			repository_id: pr.data.base.repo!!.id,
 		}), {expirationTtl: 10 * 60})
 
 		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
@@ -88,6 +89,8 @@ app.post('/webhook', async c => {
 				owner: pr.data.head.repo!!.owner.login,
 				repo: pr.data.head.repo!!.name,
 				branch: pr.data.head.ref,
+				baseRepo: `${pr.data.base.repo!!.owner.login}/${pr.data.base.repo!!.name}`,
+				prNumber: payload.issue.number,
 			}
 		});
 	});

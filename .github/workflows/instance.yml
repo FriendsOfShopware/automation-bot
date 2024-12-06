@@ -1,0 +1,54 @@
+name: Shopware Instance
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: "Execution ID"
+        required: true
+      owner:
+        description: 'Owner of the repo'
+        required: true
+      repo:
+        description: 'Repo to run against'
+        required: true
+      branch:
+        description: 'Branch to run against'
+        required: true
+        default: main
+
+permissions:
+  id-token: write
+
+jobs:
+  create-instance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch scoped token
+        id: fetch-token
+        uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
+        with:
+          id: "${{ inputs.id }}"
+
+      - uses: namespacelabs/nscloud-setup@v0
+
+      - name: Create a Namespace cluster
+        id: create-cluster
+        uses: namespacelabs/nscloud-cluster-action@v0
+
+      - name: Deploy NGINX
+        run: |
+          kubectl run shopware --image=ghcr.io/shopwarelabs/devcontainer/symfony-flex:6.6.8-8.3
+          kubectl expose pod shopware --type=LoadBalancer --port=8000
+
+      - name: Expose application
+        id: expose
+        uses: namespacelabs/nscloud-expose-kubernetes-action@v0
+        with:
+          instance-id: ${{ steps.create-cluster.outputs.instance-id }}
+          namespace: default
+          service: shopware
+
+      - name: Fix APP_URL
+        run: |
+          kubectl exec shopware -- mariadb -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.preview-url }}"'
+          kubectl exec shopware -- bin/console cache:clear:all
