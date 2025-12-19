@@ -73,7 +73,10 @@ jobs:
 
       - name: Deploy Shopware
         run: |
-          kubectl run shopware --image=ghcr.io/friendsofshopware/shopware-demo-environment:${{ inputs.shopware-version }}
+          kubectl run shopware \
+            --env="SYMFONY_TRUSTED_PROXIES=REMOTE_ADDR" \
+            --env="TRUSTED_PROXIES=REMOTE_ADDR" \
+            --image=ghcr.io/friendsofshopware/shopware-demo-environment:${{ inputs.shopware-version }}
           kubectl expose pod shopware --type=LoadBalancer --port=8000
 
       - name: Expose application
@@ -99,7 +102,7 @@ jobs:
 
       - name: Fix APP_URL
         run: |
-          kubectl exec pod/shopware -- mariadb shopware -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.outputs.preview-url }}"'
+          kubectl exec pod/shopware -- mariadb -uroot -proot shopware -e 'UPDATE sales_channel_domain SET url = "${{ steps.expose.outputs.preview-url }}"'
           kubectl exec pod/shopware -- bin/console cache:clear:all
 
       - name: Copy plugin into Container

@@ -21,7 +21,7 @@ export interface CommandContext {
 export interface Command {
 	name: string;
 	workflowPath: string;
-	getInputs(ctx: CommandContext): Record<string, string | number>;
+	getInputs(ctx: CommandContext): Record<string, string>;
 }
 
 const commands: Command[] = [
