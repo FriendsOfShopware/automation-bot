@@ -19,6 +19,6 @@
     "@octokit/auth-app": "^7.1.3",
     "@octokit/core": "^6.1.2",
     "@octokit/webhooks": "^13.3.0",
-    "hono": "^4.6.10"
+    "hono": "^4.10.3"
   }
 }
