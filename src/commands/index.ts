@@ -6,6 +6,7 @@ export interface PullRequestData {
 	headOwner: string;
 	headRepo: string;
 	headBranch: string;
+	headSha: string;
 	baseOwner: string;
 	baseRepo: string;
 	prNumber: number;

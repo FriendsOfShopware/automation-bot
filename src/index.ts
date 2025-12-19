@@ -83,6 +83,7 @@ app.post('/webhook', async c => {
 				headOwner: pr.data.head.repo!!.owner.login,
 				headRepo: pr.data.head.repo!!.name,
 				headBranch: pr.data.head.ref,
+				headSha: pr.data.head.sha,
 				baseOwner: pr.data.base.repo!!.owner.login,
 				baseRepo: pr.data.base.repo!!.name,
 				prNumber: payload.issue.number,
@@ -152,6 +153,8 @@ app.post('/api/token/generate/:id', async c => {
 		installation_id: parseInt(c.env.GITHUB_INSTALLATION_ID as string),
 		permissions: {
 			contents: 'write',
+			statuses: 'write',
+			pull_requests: 'write',
 		},
 		repository_ids: [repository_id],
 	});

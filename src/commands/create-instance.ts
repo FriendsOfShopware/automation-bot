@@ -8,6 +8,7 @@ export const createInstance: Command = {
 			owner: ctx.pr.headOwner,
 			repo: ctx.pr.headRepo,
 			branch: ctx.pr.headBranch,
+			sha: ctx.pr.headSha,
 			baseRepo: `${ctx.pr.baseOwner}/${ctx.pr.baseRepo}`,
 			prNumber: String(ctx.pr.prNumber),
 		};
