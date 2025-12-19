@@ -1,19 +1,14 @@
 import { Hono } from "hono/tiny";
-import { createAppAuth } from "@octokit/auth-app";
-import { Octokit } from "@octokit/core";
 import { Webhooks } from "@octokit/webhooks";
 import { parseJwt, getKey } from "@cfworker/jwt";
+import { getOctoClient } from "./github";
+import { commandRegistry } from "./commands";
 
 // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
 const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
 	'COLLABORATOR', // Author has been invited to collaborate on the repository.
 	'OWNER', // Author is the owner of the repository.
 	'MEMBER', // Author is a member of the organization that owns the repository.
-]);
-
-const commandToWorkflow = new Map([
-	['fix-cs', '.github/workflows/csfixer.yml'],
-	['create-instance', '.github/workflows/instance.yml'],
 ]);
 
 const app = new Hono<{ Bindings: Env }>()
@@ -32,17 +27,19 @@ app.post('/webhook', async c => {
 			return
 		}
 
-		const command = payload.comment.body.trim()
+		const text = payload.comment.body.trim()
 
-		if (!command.startsWith('@frosh-automation')) {
+		if (!text.startsWith('@frosh-automation')) {
 			return
 		}
 
-		const [_, workflow] = command.split(' ')
+		const parts = text.split(' ')
+		const commandName = parts[1]
+		const args = parts.slice(2)
 
-		const workflowPath = commandToWorkflow.get(workflow)
+		const command = commandRegistry.get(commandName)
 
-		if (!workflowPath) {
+		if (!command) {
 			return
 		}
 
@@ -66,7 +63,7 @@ app.post('/webhook', async c => {
 			repo: 'automation-bot',
 		});
 
-		const workflowId = workflows.data.workflows.find(w => w.path === workflowPath)?.id
+		const workflowId = workflows.data.workflows.find(w => w.path === command.workflowPath)?.id
 
 		if (!workflowId) {
 			console.log('Workflow not found')
@@ -79,6 +76,20 @@ app.post('/webhook', async c => {
 			repository_id: pr.data.base.repo!!.id,
 		}), {expirationTtl: 10 * 60})
 
+		const inputs = command.getInputs({
+			octo,
+			env: c.env,
+			pr: {
+				headOwner: pr.data.head.repo!!.owner.login,
+				headRepo: pr.data.head.repo!!.name,
+				headBranch: pr.data.head.ref,
+				baseOwner: pr.data.base.repo!!.owner.login,
+				baseRepo: pr.data.base.repo!!.name,
+				prNumber: payload.issue.number,
+			},
+			args,
+		});
+
 		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
 			owner: 'FriendsOfShopware',
 			repo: 'automation-bot',
@@ -86,12 +97,8 @@ app.post('/webhook', async c => {
 			ref: 'main',
 			inputs: {
 				id: uuid,
-				owner: pr.data.head.repo!!.owner.login,
-				repo: pr.data.head.repo!!.name,
-				branch: pr.data.head.ref,
-				baseRepo: `${pr.data.base.repo!!.owner.login}/${pr.data.base.repo!!.name}`,
-				prNumber: payload.issue.number,
-			}
+				...inputs,
+			},
 		});
 	});
 
@@ -105,17 +112,6 @@ app.post('/webhook', async c => {
 
 	return c.json({ ok: true })
 });
-
-function getOctoClient(env: Env) {
-	return new Octokit({
-		authStrategy: createAppAuth,
-		auth: {
-			appId: env.GITHUB_APP_ID,
-			privateKey: env.GITHUB_PRIVATE_KEY,
-			installationId: env.GITHUB_INSTALLATION_ID,
-		},
-	})
-}
 
 app.post('/api/token/generate/:id', async c => {
 	const authHeader = c.req.header('Authorization')
@@ -199,8 +195,6 @@ app.post('/api/token/delete/:id', async c => {
 	if (!githubToken) {
 		return c.json({ error: 'GitHub-Bot-Access-Token header is missing' }, 401)
 	}
-
-	const octo = getOctoClient(c.env)
 
 	const resp = await fetch('https://api.github.com/installation/token', {
 		method: 'DELETE',

@@ -25,6 +25,10 @@ on:
       prNumber:
         description: 'PR number'
         required: true
+      shopware-version:
+        description: 'Shopware version to use'
+        required: true
+        default: "6.6.8"
 
 permissions:
   id-token: write
@@ -35,7 +39,7 @@ jobs:
     steps:
       - name: Install Shopware CLI
         uses: FriendsOfShopware/shopware-cli-action@v1
-  
+
       - name: Fetch scoped token
         id: fetch-token
         uses: FriendsOfShopware/automation-bot/actions/fetch-token@main
@@ -69,7 +73,7 @@ jobs:
 
       - name: Deploy Shopware
         run: |
-          kubectl run shopware --image=ghcr.io/shopwarelabs/devcontainer/symfony-flex:6.6.8-8.3
+          kubectl run shopware --image=ghcr.io/friendsofshopware/shopware-demo-environment:${{ inputs.shopware-version }}
           kubectl expose pod shopware --type=LoadBalancer --port=8000
 
       - name: Expose application
@@ -80,17 +84,17 @@ jobs:
           namespace: default
           service: shopware
 
-      - name: Wait for Container Startup  
+      - name: Wait for Container Startup
         run: |
           set +e
-          while true; do  
-            kubectl exec pod/shopware -- bin/console plugin:list  
-              if [ $? -eq 0 ]; then  
-                echo "Command succeeded!"  
-                break  
-              fi  
-            echo "Command failed, retrying in 1 seconds..."  
-            sleep 1  
+          while true; do
+            kubectl exec pod/shopware -- bin/console plugin:list
+              if [ $? -eq 0 ]; then
+                echo "Command succeeded!"
+                break
+              fi
+            echo "Command failed, retrying in 1 seconds..."
+            sleep 1
           done
 
       - name: Fix APP_URL
