@@ -1,0 +1,30 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "automation-bot",
+	"main": "src/index.ts",
+	"compatibility_date": "2024-11-12",
+	"compatibility_flags": ["nodejs_compat"],
+	"routes": [
+		{
+			"pattern": "github-bot.fos.gg",
+			"custom_domain": true
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "db",
+			"database_name": "automation-bot",
+			"database_id": "94dbae03-5785-4af4-88b9-7bd499b0e73e",
+			"migrations_dir": "migrations"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "kv",
+			"id": "b7bc559d37be47f4833c658e5ebc9a69"
+		}
+	]
+}

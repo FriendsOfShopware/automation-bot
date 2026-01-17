@@ -5,33 +5,6 @@ on:
       id:
         description: "Execution ID"
         required: true
-      owner:
-        description: 'Owner of the repo'
-        required: true
-      repo:
-        description: 'Repo to run against'
-        required: true
-      branch:
-        description: 'Branch to run against'
-        required: true
-        default: main
-      php-version:
-        description: 'PHP version to use'
-        required: true
-        default: "8.2"
-      baseRepo:
-        description: 'baseRepo'
-        required: true
-      prNumber:
-        description: 'PR number'
-        required: true
-      sha:
-        description: 'Commit SHA'
-        required: true
-      shopware-version:
-        description: 'Shopware version to use'
-        required: true
-        default: "6.6.8"
 
 permissions:
   id-token: write
@@ -49,12 +22,21 @@ jobs:
         with:
           id: "${{ inputs.id }}"
 
+      - name: Parse args
+        id: parse-args
+        run: |
+          ARGS='${{ steps.fetch-token.outputs.args }}'
+          SHOPWARE_VERSION=$(echo "$ARGS" | jq -r '.[0] // "6.6.8"')
+          PHP_VERSION=$(echo "$ARGS" | jq -r '.[1] // "8.2"')
+          echo "shopware-version=$SHOPWARE_VERSION" >> $GITHUB_OUTPUT
+          echo "php-version=$PHP_VERSION" >> $GITHUB_OUTPUT
+
       - name: Clone Plugin
         uses: actions/checkout@v4
         with:
           path: plugin
-          repository: "${{ inputs.owner }}/${{ inputs.repo }}"
-          ref: "${{ inputs.branch }}"
+          repository: "${{ steps.fetch-token.outputs.head-owner }}/${{ steps.fetch-token.outputs.head-repo }}"
+          ref: "${{ steps.fetch-token.outputs.head-branch }}"
           token: ${{ steps.fetch-token.outputs.token }}
 
       - name: Build Plugin
@@ -63,7 +45,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "${{ inputs.php-version }}"
+          php-version: "${{ steps.parse-args.outputs.php-version }}"
 
       - name: Setup Namespace CLI
         uses: namespacelabs/nscloud-setup@v0
@@ -79,7 +61,7 @@ jobs:
           kubectl run shopware \
             --env="SYMFONY_TRUSTED_PROXIES=REMOTE_ADDR" \
             --env="TRUSTED_PROXIES=REMOTE_ADDR" \
-            --image=ghcr.io/friendsofshopware/shopware-demo-environment:${{ inputs.shopware-version }}
+            --image=ghcr.io/friendsofshopware/shopware-demo-environment:${{ steps.parse-args.outputs.shopware-version }}
           kubectl expose pod shopware --type=LoadBalancer --port=8000
 
       - name: Expose application
@@ -112,34 +94,10 @@ jobs:
         run: |
           kubectl cp plugin shopware:/var/www/html/custom/plugins/plugin
           kubectl exec pod/shopware -- bin/console plugin:refresh
-          kubectl exec pod/shopware -- bin/console plugin:install --activate ${{ inputs.repo }}
+          kubectl exec pod/shopware -- bin/console plugin:install --activate ${{ steps.fetch-token.outputs.head-repo }}
 
-      - name: Create comment
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Report success
+        uses: FriendsOfShopware/automation-bot/actions/report-data@main
         with:
-          issue-number: ${{ inputs.prNumber }}
-          repository: ${{ inputs.baseRepo }}
-          token: ${{ steps.fetch-token.outputs.token }}
-          body: |
-            Hey :wave:,
-
-            I have created for you an Shopware Instalation with the current changes made here.
-
-            You can access the Shop here: ${{ steps.expose.outputs.preview-url }}
-
-            The URL is only for FriendsOfShopware members.
-
-      - name: Create GitHub check
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ steps.fetch-token.outputs.token }}
-          script: |
-            await github.rest.repos.createCommitStatus({
-              owner: '${{ inputs.baseRepo }}'.split('/')[0],
-              repo: '${{ inputs.baseRepo }}'.split('/')[1],
-              sha: '${{ inputs.sha }}',
-              state: 'success',
-              target_url: '${{ steps.expose.outputs.preview-url }}',
-              description: 'Shopware instance is ready',
-              context: 'Shopware Preview'
-            });
+          id: "${{ inputs.id }}"
+          data: '{"previewUrl": "${{ steps.expose.outputs.preview-url }}"}'

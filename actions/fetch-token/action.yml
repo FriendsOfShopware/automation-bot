@@ -12,6 +12,24 @@ inputs:
 outputs:
   token:
     description: "Token"
+  execution:
+    description: "Execution context JSON"
+  head-owner:
+    description: "Head repository owner"
+  head-repo:
+    description: "Head repository name"
+  head-branch:
+    description: "Head branch"
+  head-sha:
+    description: "Head commit SHA"
+  base-owner:
+    description: "Base repository owner"
+  base-repo:
+    description: "Base repository name"
+  pr-number:
+    description: "Pull request number"
+  args:
+    description: "Command arguments JSON array"
 
 runs:
   using: 'node20'

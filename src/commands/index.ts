@@ -2,7 +2,9 @@ import { Octokit } from "@octokit/core";
 import { fixCs } from "./fix-cs";
 import { createInstance } from "./create-instance";
 
-export interface PullRequestData {
+export interface ExecutionContext {
+	id: string;
+	command: string;
 	headOwner: string;
 	headRepo: string;
 	headBranch: string;
@@ -10,26 +12,30 @@ export interface PullRequestData {
 	baseOwner: string;
 	baseRepo: string;
 	prNumber: number;
-}
-
-export interface CommandContext {
-	octo: Octokit;
-	env: Env;
-	pr: PullRequestData;
 	args: string[];
 }
 
-export interface Command {
-	name: string;
-	workflowPath: string;
-	getInputs(ctx: CommandContext): Record<string, string>;
+export interface PostExecutionContext<TPayload> {
+	octo: Octokit;
+	execution: ExecutionContext;
+	payload: TPayload;
 }
 
-const commands: Command[] = [
+export interface PostExecutionResult {
+	status: 'completed' | 'failed';
+}
+
+export interface Command<TPayload = unknown> {
+	name: string;
+	workflowPath: string;
+	postExecution(ctx: PostExecutionContext<TPayload>): Promise<PostExecutionResult>;
+}
+
+const commands: Command<any>[] = [
 	fixCs,
 	createInstance,
 ];
 
-export const commandRegistry = new Map<string, Command>(
+export const commandRegistry = new Map<string, Command<any>>(
 	commands.map(cmd => [cmd.name, cmd])
 );

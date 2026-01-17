@@ -1,22 +1,37 @@
-import type { Command, CommandContext } from "./index";
+import type { Command, PostExecutionContext, PostExecutionResult } from "./index";
 
-export const createInstance: Command = {
+interface CreateInstancePayload {
+	previewUrl: string;
+}
+
+export const createInstance: Command<CreateInstancePayload> = {
 	name: "create-instance",
 	workflowPath: ".github/workflows/instance.yml",
-	getInputs(ctx: CommandContext): Record<string, string> {
-		const inputs: Record<string, string> = {
-			owner: ctx.pr.headOwner,
-			repo: ctx.pr.headRepo,
-			branch: ctx.pr.headBranch,
-			sha: ctx.pr.headSha,
-			baseRepo: `${ctx.pr.baseOwner}/${ctx.pr.baseRepo}`,
-			prNumber: String(ctx.pr.prNumber),
-		};
 
-		if (ctx.args.length > 0) {
-			inputs["shopware-version"] = ctx.args[0];
-		}
+	async postExecution(ctx: PostExecutionContext<CreateInstancePayload>): Promise<PostExecutionResult> {
+		await ctx.octo.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
+			owner: ctx.execution.baseOwner,
+			repo: ctx.execution.baseRepo,
+			issue_number: ctx.execution.prNumber,
+			body: `Hey :wave:,
 
-		return inputs;
+I have created for you a Shopware installation with the current changes made here.
+
+You can access the Shop here: ${ctx.payload.previewUrl}
+
+The URL is only for FriendsOfShopware members.`,
+		});
+
+		await ctx.octo.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
+			owner: ctx.execution.baseOwner,
+			repo: ctx.execution.baseRepo,
+			sha: ctx.execution.headSha,
+			state: 'success',
+			target_url: ctx.payload.previewUrl,
+			description: 'Shopware instance is ready',
+			context: 'Shopware Preview',
+		});
+
+		return { status: 'completed' };
 	},
 };

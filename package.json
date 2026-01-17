@@ -6,13 +6,14 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "test": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "build-actions": "cd actions/fetch-token && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/post/main.ts --outdir=dist/post && cd ../report-data && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241112.0",
     "typescript": "^5.5.2",
-    "wrangler": "^4.56.0"
+    "wrangler": "^4.56.0",
+    "@actions/core": "^2.0.2"
   },
   "dependencies": {
     "@cfworker/jwt": "^6.0.1",

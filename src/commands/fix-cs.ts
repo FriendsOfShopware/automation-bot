@@ -1,15 +1,39 @@
-import type { Command, CommandContext } from "./index";
+import type { Command, PostExecutionContext, PostExecutionResult } from "./index";
 
-export const fixCs: Command = {
+interface FixCsPayload {
+	changes: boolean;
+}
+
+export const fixCs: Command<FixCsPayload> = {
 	name: "fix-cs",
 	workflowPath: ".github/workflows/csfixer.yml",
-	getInputs(ctx: CommandContext): Record<string, string> {
-		return {
-			owner: ctx.pr.headOwner,
-			repo: ctx.pr.headRepo,
-			branch: ctx.pr.headBranch,
-			baseRepo: `${ctx.pr.baseOwner}/${ctx.pr.baseRepo}`,
-			prNumber: String(ctx.pr.prNumber),
-		};
+
+	async postExecution(ctx: PostExecutionContext<FixCsPayload>): Promise<PostExecutionResult> {
+		if (ctx.payload.changes) {
+			await ctx.octo.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
+				owner: ctx.execution.baseOwner,
+				repo: ctx.execution.baseRepo,
+				issue_number: ctx.execution.prNumber,
+				body: 'Code style has been fixed and pushed to the branch.',
+			});
+		} else {
+			await ctx.octo.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
+				owner: ctx.execution.baseOwner,
+				repo: ctx.execution.baseRepo,
+				issue_number: ctx.execution.prNumber,
+				body: 'No code style changes needed - the code already follows the style guidelines.',
+			});
+		}
+
+		await ctx.octo.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
+			owner: ctx.execution.baseOwner,
+			repo: ctx.execution.baseRepo,
+			sha: ctx.execution.headSha,
+			state: 'success',
+			description: ctx.payload.changes ? 'Code style applied' : 'No changes needed',
+			context: 'PHP CS Fixer',
+		});
+
+		return { status: 'completed' };
 	},
 };
