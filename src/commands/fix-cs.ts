@@ -25,15 +25,6 @@ export const fixCs: Command<FixCsPayload> = {
 			});
 		}
 
-		await ctx.octo.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
-			owner: ctx.execution.baseOwner,
-			repo: ctx.execution.baseRepo,
-			sha: ctx.execution.headSha,
-			state: 'success',
-			description: ctx.payload.changes ? 'Code style applied' : 'No changes needed',
-			context: 'PHP CS Fixer',
-		});
-
 		return { status: 'completed' };
 	},
 };
