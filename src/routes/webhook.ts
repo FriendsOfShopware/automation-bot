@@ -28,7 +28,7 @@ webhook.post('/', async c => {
 
 		const text = payload.comment.body.trim()
 
-		if (!text.startsWith('@frosh-automation')) {
+		if (!text.startsWith('@frosh-automation') && !text.startsWith('@frosh-ci')) {
 			return
 		}
 
