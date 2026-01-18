@@ -10,16 +10,18 @@
     "build-actions": "cd actions/fetch-token && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/post/main.ts --outdir=dist/post && cd ../report-data && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main"
   },
   "devDependencies": {
+    "@actions/core": "^2.0.2",
     "@cloudflare/workers-types": "^4.20241112.0",
+    "drizzle-kit": "^0.31.8",
     "typescript": "^5.5.2",
-    "wrangler": "^4.56.0",
-    "@actions/core": "^2.0.2"
+    "wrangler": "^4.56.0"
   },
   "dependencies": {
     "@cfworker/jwt": "^6.0.1",
     "@octokit/auth-app": "^7.1.3",
     "@octokit/core": "^6.1.2",
     "@octokit/webhooks": "^13.3.0",
+    "drizzle-orm": "^0.45.1",
     "hono": "^4.11.4"
   }
 }

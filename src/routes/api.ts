@@ -1,10 +1,11 @@
 import { Hono } from "hono/tiny";
+import { eq, and, like, desc } from "drizzle-orm";
 import { getOctoClient } from "../github";
 import { commandRegistry } from "../commands";
 import { validateOidcToken } from "../auth";
 import { ExecutionRow, rowToExecutionContext } from "../execution";
 import { getIssueStats } from "../issues/sync";
-import type { GitHubIssueRow, GitHubSyncStatusRow } from "../issues/types";
+import { getDb, githubIssues, githubSyncStatus } from "../db";
 
 const api = new Hono<{ Bindings: Env }>();
 
@@ -153,6 +154,7 @@ api.get('/issues/stats', async c => {
 });
 
 api.get('/issues', async c => {
+	const db = getDb(c.env.db);
 	const state = c.req.query('state') || 'open';
 	const repo = c.req.query('repo');
 	const author = c.req.query('author');
@@ -160,56 +162,60 @@ api.get('/issues', async c => {
 	const limit = Math.min(parseInt(c.req.query('limit') || '100'), 500);
 	const offset = parseInt(c.req.query('offset') || '0');
 
-	let query = 'SELECT * FROM github_issues WHERE 1=1';
-	const params: (string | number)[] = [];
+	// Build conditions array
+	const conditions = [];
 
 	if (state && state !== 'all') {
-		query += ' AND state = ?';
-		params.push(state);
+		conditions.push(eq(githubIssues.state, state));
 	}
 
 	if (repo) {
-		query += ' AND repository_full_name = ?';
-		params.push(repo);
+		conditions.push(eq(githubIssues.repositoryFullName, repo));
 	}
 
 	if (author) {
-		query += ' AND author_login = ?';
-		params.push(author);
+		conditions.push(eq(githubIssues.authorLogin, author));
 	}
 
 	if (label) {
-		query += ' AND labels LIKE ?';
-		params.push(`%"${label}"%`);
+		conditions.push(like(githubIssues.labels, `%"${label}"%`));
 	}
 
-	query += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
-	params.push(limit, offset);
-
-	const result = await c.env.db.prepare(query).bind(...params).all<GitHubIssueRow>();
+	const issues = await db.select()
+		.from(githubIssues)
+		.where(conditions.length > 0 ? and(...conditions) : undefined)
+		.orderBy(desc(githubIssues.updatedAt))
+		.limit(limit)
+		.offset(offset);
 
 	return c.json({
-		issues: result.results ?? [],
-		count: result.results?.length ?? 0,
+		issues,
+		count: issues.length,
 	});
 });
 
 api.get('/issues/repositories', async c => {
-	const result = await c.env.db.prepare(`
-		SELECT DISTINCT repository_full_name, repository_owner, repository_name
-		FROM github_issues
-		ORDER BY repository_full_name
-	`).all<{ repository_full_name: string; repository_owner: string; repository_name: string }>();
+	const db = getDb(c.env.db);
 
-	return c.json(result.results ?? []);
+	const repos = await db.selectDistinct({
+		repositoryFullName: githubIssues.repositoryFullName,
+		repositoryOwner: githubIssues.repositoryOwner,
+		repositoryName: githubIssues.repositoryName,
+	})
+		.from(githubIssues)
+		.orderBy(githubIssues.repositoryFullName);
+
+	return c.json(repos);
 });
 
 api.get('/issues/sync-status', async c => {
-	const result = await c.env.db.prepare(`
-		SELECT * FROM github_sync_status ORDER BY last_synced_at DESC
-	`).all<GitHubSyncStatusRow>();
+	const db = getDb(c.env.db);
 
-	return c.json(result.results ?? []);
+	const status = await db.select()
+		.from(githubSyncStatus)
+		.orderBy(desc(githubSyncStatus.lastSyncedAt));
+
+	return c.json(status);
 });
 
 export default api;

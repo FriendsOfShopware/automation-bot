@@ -1,4 +1,6 @@
 import { Octokit } from '@octokit/core';
+import { eq, and, sql, inArray, count, desc } from 'drizzle-orm';
+import { getDb, githubIssues, githubSyncStatus } from '../db';
 import type { GitHubIssueFromAPI, GitHubRepository, RepoSyncMessage } from './types';
 
 const ORG_NAME = 'FriendsOfShopware';
@@ -22,32 +24,50 @@ export async function enqueueAllRepos(octo: Octokit, queue: Queue<RepoSyncMessag
 }
 
 // Sync a single repository - used by queue consumer
-export async function syncSingleRepository(octo: Octokit, db: D1Database, repo: GitHubRepository): Promise<{ synced: number }> {
-	try {
-		const synced = await syncRepositoryIssues(octo, db, repo);
+export async function syncSingleRepository(octo: Octokit, d1: D1Database, repo: GitHubRepository): Promise<{ synced: number }> {
+	const db = getDb(d1);
 
-		await db.prepare(`
-			INSERT INTO github_sync_status (repository_full_name, last_synced_at, issues_count, open_issues_count, error)
-			VALUES (?, datetime('now'), ?, ?, NULL)
-			ON CONFLICT(repository_full_name) DO UPDATE SET
-				last_synced_at = datetime('now'),
-				issues_count = excluded.issues_count,
-				open_issues_count = excluded.open_issues_count,
-				error = NULL
-		`).bind(repo.full_name, synced, repo.open_issues_count).run();
+	try {
+		const synced = await syncRepositoryIssues(octo, d1, repo);
+
+		await db.insert(githubSyncStatus)
+			.values({
+				repositoryFullName: repo.full_name,
+				lastSyncedAt: new Date().toISOString(),
+				issuesCount: synced,
+				openIssuesCount: repo.open_issues_count,
+				error: null,
+			})
+			.onConflictDoUpdate({
+				target: githubSyncStatus.repositoryFullName,
+				set: {
+					lastSyncedAt: new Date().toISOString(),
+					issuesCount: synced,
+					openIssuesCount: repo.open_issues_count,
+					error: null,
+				},
+			});
 
 		console.log(`Synced ${synced} issues from ${repo.full_name}`);
 		return { synced };
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 
-		await db.prepare(`
-			INSERT INTO github_sync_status (repository_full_name, last_synced_at, issues_count, open_issues_count, error)
-			VALUES (?, datetime('now'), 0, 0, ?)
-			ON CONFLICT(repository_full_name) DO UPDATE SET
-				last_synced_at = datetime('now'),
-				error = excluded.error
-		`).bind(repo.full_name, errorMsg).run();
+		await db.insert(githubSyncStatus)
+			.values({
+				repositoryFullName: repo.full_name,
+				lastSyncedAt: new Date().toISOString(),
+				issuesCount: 0,
+				openIssuesCount: 0,
+				error: errorMsg,
+			})
+			.onConflictDoUpdate({
+				target: githubSyncStatus.repositoryFullName,
+				set: {
+					lastSyncedAt: new Date().toISOString(),
+					error: errorMsg,
+				},
+			});
 
 		console.error(`Failed to sync ${repo.full_name}: ${errorMsg}`);
 		throw error;
@@ -91,29 +111,35 @@ async function fetchAllRepositories(octo: Octokit): Promise<GitHubRepository[]> 
 	return repos;
 }
 
-async function syncRepositoryIssues(octo: Octokit, db: D1Database, repo: GitHubRepository): Promise<number> {
+async function syncRepositoryIssues(octo: Octokit, d1: D1Database, repo: GitHubRepository): Promise<number> {
+	const db = getDb(d1);
 	const issues = await fetchAllOpenIssues(octo, repo.owner.login, repo.name);
 
 	// Get existing issue IDs for this repo to handle deletions
-	const existingResult = await db.prepare(`
-		SELECT id FROM github_issues WHERE repository_full_name = ? AND state = 'open'
-	`).bind(repo.full_name).all<{ id: number }>();
+	const existingIssues = await db.select({ id: githubIssues.id })
+		.from(githubIssues)
+		.where(and(
+			eq(githubIssues.repositoryFullName, repo.full_name),
+			eq(githubIssues.state, 'open')
+		));
 
-	const existingIds = new Set(existingResult.results?.map(r => r.id) ?? []);
+	const existingIds = new Set(existingIssues.map(r => r.id));
 	const fetchedIds = new Set(issues.map(i => i.id));
 
 	// Mark issues that are no longer open as closed
 	const toClose = [...existingIds].filter(id => !fetchedIds.has(id));
 	if (toClose.length > 0) {
-		const placeholders = toClose.map(() => '?').join(',');
-		await db.prepare(`
-			UPDATE github_issues SET state = 'closed', synced_at = datetime('now') WHERE id IN (${placeholders})
-		`).bind(...toClose).run();
+		await db.update(githubIssues)
+			.set({
+				state: 'closed',
+				syncedAt: new Date().toISOString(),
+			})
+			.where(inArray(githubIssues.id, toClose));
 	}
 
 	// Upsert all fetched issues
 	for (const issue of issues) {
-		await upsertIssue(db, issue, repo);
+		await upsertIssue(d1, issue, repo);
 	}
 
 	return issues.length;
@@ -149,92 +175,93 @@ async function fetchAllOpenIssues(octo: Octokit, owner: string, repo: string): P
 	return issues;
 }
 
-export async function upsertIssue(db: D1Database, issue: GitHubIssueFromAPI, repo: GitHubRepository): Promise<void> {
+export async function upsertIssue(d1: D1Database, issue: GitHubIssueFromAPI, repo: GitHubRepository): Promise<void> {
+	const db = getDb(d1);
 	const labels = issue.labels.map(l => l.name);
 	const assignees = issue.assignees.map(a => a.login);
-	const isPullRequest = issue.pull_request !== undefined ? 1 : 0;
 
-	await db.prepare(`
-		INSERT INTO github_issues (
-			id, node_id, number, title, body, state, state_reason, locked, comments_count,
-			created_at, updated_at, closed_at, author_login, author_avatar_url, author_association,
-			repository_id, repository_owner, repository_name, repository_full_name,
-			labels, assignees, milestone_id, milestone_title, is_pull_request, html_url,
-			reactions_total, synced_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-		ON CONFLICT(node_id) DO UPDATE SET
-			title = excluded.title,
-			body = excluded.body,
-			state = excluded.state,
-			state_reason = excluded.state_reason,
-			locked = excluded.locked,
-			comments_count = excluded.comments_count,
-			updated_at = excluded.updated_at,
-			closed_at = excluded.closed_at,
-			labels = excluded.labels,
-			assignees = excluded.assignees,
-			milestone_id = excluded.milestone_id,
-			milestone_title = excluded.milestone_title,
-			html_url = excluded.html_url,
-			reactions_total = excluded.reactions_total,
-			synced_at = datetime('now')
-	`).bind(
-		issue.id,
-		issue.node_id,
-		issue.number,
-		issue.title,
-		issue.body,
-		issue.state,
-		issue.state_reason ?? null,
-		issue.locked ? 1 : 0,
-		issue.comments,
-		issue.created_at,
-		issue.updated_at,
-		issue.closed_at,
-		issue.user?.login ?? null,
-		issue.user?.avatar_url ?? null,
-		issue.author_association,
-		repo.id,
-		repo.owner.login,
-		repo.name,
-		repo.full_name,
-		JSON.stringify(labels),
-		JSON.stringify(assignees),
-		issue.milestone?.id ?? null,
-		issue.milestone?.title ?? null,
-		isPullRequest,
-		issue.html_url,
-		issue.reactions?.total_count ?? 0
-	).run();
+	await db.insert(githubIssues)
+		.values({
+			id: issue.id,
+			nodeId: issue.node_id,
+			number: issue.number,
+			title: issue.title,
+			body: issue.body,
+			state: issue.state,
+			stateReason: issue.state_reason ?? null,
+			locked: issue.locked,
+			commentsCount: issue.comments,
+			createdAt: issue.created_at,
+			updatedAt: issue.updated_at,
+			closedAt: issue.closed_at,
+			authorLogin: issue.user?.login ?? null,
+			authorAvatarUrl: issue.user?.avatar_url ?? null,
+			authorAssociation: issue.author_association,
+			repositoryId: repo.id,
+			repositoryOwner: repo.owner.login,
+			repositoryName: repo.name,
+			repositoryFullName: repo.full_name,
+			labels: JSON.stringify(labels),
+			assignees: JSON.stringify(assignees),
+			milestoneId: issue.milestone?.id ?? null,
+			milestoneTitle: issue.milestone?.title ?? null,
+			isPullRequest: issue.pull_request !== undefined,
+			htmlUrl: issue.html_url,
+			reactionsTotal: issue.reactions?.total_count ?? 0,
+			syncedAt: new Date().toISOString(),
+		})
+		.onConflictDoUpdate({
+			target: githubIssues.nodeId,
+			set: {
+				title: issue.title,
+				body: issue.body,
+				state: issue.state,
+				stateReason: issue.state_reason ?? null,
+				locked: issue.locked,
+				commentsCount: issue.comments,
+				updatedAt: issue.updated_at,
+				closedAt: issue.closed_at,
+				labels: JSON.stringify(labels),
+				assignees: JSON.stringify(assignees),
+				milestoneId: issue.milestone?.id ?? null,
+				milestoneTitle: issue.milestone?.title ?? null,
+				htmlUrl: issue.html_url,
+				reactionsTotal: issue.reactions?.total_count ?? 0,
+				syncedAt: new Date().toISOString(),
+			},
+		});
 }
 
-export async function deleteIssue(db: D1Database, issueId: number): Promise<void> {
-	await db.prepare(`DELETE FROM github_issues WHERE id = ?`).bind(issueId).run();
+export async function deleteIssue(d1: D1Database, issueId: number): Promise<void> {
+	const db = getDb(d1);
+	await db.delete(githubIssues).where(eq(githubIssues.id, issueId));
 }
 
-export async function getIssueStats(db: D1Database): Promise<{
+export async function getIssueStats(d1: D1Database): Promise<{
 	total: number;
 	open: number;
 	closed: number;
 	byRepo: Array<{ repo: string; open: number; closed: number }>;
 }> {
-	const totalResult = await db.prepare(`SELECT COUNT(*) as count FROM github_issues`).first<{ count: number }>();
-	const openResult = await db.prepare(`SELECT COUNT(*) as count FROM github_issues WHERE state = 'open'`).first<{ count: number }>();
-	const closedResult = await db.prepare(`SELECT COUNT(*) as count FROM github_issues WHERE state = 'closed'`).first<{ count: number }>();
+	const db = getDb(d1);
 
-	const byRepoResult = await db.prepare(`
-		SELECT repository_full_name as repo,
-			SUM(CASE WHEN state = 'open' THEN 1 ELSE 0 END) as open,
-			SUM(CASE WHEN state = 'closed' THEN 1 ELSE 0 END) as closed
-		FROM github_issues
-		GROUP BY repository_full_name
-		ORDER BY open DESC
-	`).all<{ repo: string; open: number; closed: number }>();
+	const [totalResult] = await db.select({ count: count() }).from(githubIssues);
+	const [openResult] = await db.select({ count: count() }).from(githubIssues).where(eq(githubIssues.state, 'open'));
+	const [closedResult] = await db.select({ count: count() }).from(githubIssues).where(eq(githubIssues.state, 'closed'));
+
+	const byRepoResult = await db.select({
+		repo: githubIssues.repositoryFullName,
+		open: sql<number>`SUM(CASE WHEN ${githubIssues.state} = 'open' THEN 1 ELSE 0 END)`,
+		closed: sql<number>`SUM(CASE WHEN ${githubIssues.state} = 'closed' THEN 1 ELSE 0 END)`,
+	})
+		.from(githubIssues)
+		.groupBy(githubIssues.repositoryFullName)
+		.orderBy(desc(sql`open`));
 
 	return {
 		total: totalResult?.count ?? 0,
 		open: openResult?.count ?? 0,
 		closed: closedResult?.count ?? 0,
-		byRepo: byRepoResult.results ?? [],
+		byRepo: byRepoResult,
 	};
 }
