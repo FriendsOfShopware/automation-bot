@@ -3,6 +3,8 @@ import { getOctoClient } from "../github";
 import { commandRegistry } from "../commands";
 import { validateOidcToken } from "../auth";
 import { ExecutionRow, rowToExecutionContext } from "../execution";
+import { getIssueStats } from "../issues/sync";
+import type { GitHubIssueRow, GitHubSyncStatusRow } from "../issues/types";
 
 const api = new Hono<{ Bindings: Env }>();
 
@@ -141,6 +143,73 @@ api.post('/report/:id', async c => {
 	`).bind(result.status, JSON.stringify(payload), id).run();
 
 	return c.json({ ok: true });
+});
+
+// Dashboard API endpoints for GitHub issues
+
+api.get('/issues/stats', async c => {
+	const stats = await getIssueStats(c.env.db);
+	return c.json(stats);
+});
+
+api.get('/issues', async c => {
+	const state = c.req.query('state') || 'open';
+	const repo = c.req.query('repo');
+	const author = c.req.query('author');
+	const label = c.req.query('label');
+	const limit = Math.min(parseInt(c.req.query('limit') || '100'), 500);
+	const offset = parseInt(c.req.query('offset') || '0');
+
+	let query = 'SELECT * FROM github_issues WHERE 1=1';
+	const params: (string | number)[] = [];
+
+	if (state && state !== 'all') {
+		query += ' AND state = ?';
+		params.push(state);
+	}
+
+	if (repo) {
+		query += ' AND repository_full_name = ?';
+		params.push(repo);
+	}
+
+	if (author) {
+		query += ' AND author_login = ?';
+		params.push(author);
+	}
+
+	if (label) {
+		query += ' AND labels LIKE ?';
+		params.push(`%"${label}"%`);
+	}
+
+	query += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
+	params.push(limit, offset);
+
+	const result = await c.env.db.prepare(query).bind(...params).all<GitHubIssueRow>();
+
+	return c.json({
+		issues: result.results ?? [],
+		count: result.results?.length ?? 0,
+	});
+});
+
+api.get('/issues/repositories', async c => {
+	const result = await c.env.db.prepare(`
+		SELECT DISTINCT repository_full_name, repository_owner, repository_name
+		FROM github_issues
+		ORDER BY repository_full_name
+	`).all<{ repository_full_name: string; repository_owner: string; repository_name: string }>();
+
+	return c.json(result.results ?? []);
+});
+
+api.get('/issues/sync-status', async c => {
+	const result = await c.env.db.prepare(`
+		SELECT * FROM github_sync_status ORDER BY last_synced_at DESC
+	`).all<GitHubSyncStatusRow>();
+
+	return c.json(result.results ?? []);
 });
 
 export default api;

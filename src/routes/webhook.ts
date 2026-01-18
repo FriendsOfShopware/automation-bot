@@ -2,6 +2,8 @@ import { Hono } from "hono/tiny";
 import { Webhooks } from "@octokit/webhooks";
 import { getOctoClient } from "../github";
 import { commandRegistry } from "../commands";
+import { upsertIssue, deleteIssue } from "../issues/sync";
+import type { GitHubIssueFromAPI, GitHubRepository } from "../issues/types";
 
 // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
 const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
@@ -103,6 +105,63 @@ webhook.post('/', async c => {
 				id: uuid,
 			},
 		});
+	});
+
+	// Handle issue events for real-time D1 sync
+	webhooks.on(['issues.opened', 'issues.edited', 'issues.closed', 'issues.reopened', 'issues.labeled', 'issues.unlabeled', 'issues.assigned', 'issues.unassigned', 'issues.milestoned', 'issues.demilestoned'], async ({ payload }) => {
+		const repo: GitHubRepository = {
+			id: payload.repository.id,
+			name: payload.repository.name,
+			full_name: payload.repository.full_name,
+			owner: { login: payload.repository.owner.login },
+			open_issues_count: payload.repository.open_issues_count ?? 0,
+			archived: payload.repository.archived ?? false,
+			disabled: payload.repository.disabled ?? false,
+		};
+
+		const issue: GitHubIssueFromAPI = {
+			id: payload.issue.id,
+			node_id: payload.issue.node_id,
+			number: payload.issue.number,
+			title: payload.issue.title,
+			body: payload.issue.body ?? null,
+			state: payload.issue.state as string,
+			state_reason: payload.issue.state_reason ?? null,
+			locked: payload.issue.locked ?? false,
+			comments: payload.issue.comments,
+			created_at: payload.issue.created_at,
+			updated_at: payload.issue.updated_at,
+			closed_at: payload.issue.closed_at,
+			user: payload.issue.user ? {
+				login: payload.issue.user.login,
+				avatar_url: payload.issue.user.avatar_url ?? '',
+			} : null,
+			author_association: payload.issue.author_association,
+			labels: payload.issue.labels?.map(l => ({ name: typeof l === 'string' ? l : (l?.name ?? '') })) ?? [],
+			assignees: payload.issue.assignees?.filter(a => a !== null).map(a => ({ login: a!.login })) ?? [],
+			milestone: payload.issue.milestone ? {
+				id: payload.issue.milestone.id,
+				title: payload.issue.milestone.title,
+			} : null,
+			html_url: payload.issue.html_url,
+			reactions: payload.issue.reactions ? {
+				total_count: payload.issue.reactions.total_count,
+			} : undefined,
+		};
+
+		await upsertIssue(c.env.db, issue, repo);
+		console.log(`Issue ${payload.action}: ${repo.full_name}#${issue.number}`);
+	});
+
+	webhooks.on('issues.deleted', async ({ payload }) => {
+		await deleteIssue(c.env.db, payload.issue.id);
+		console.log(`Issue deleted: ${payload.repository.full_name}#${payload.issue.number}`);
+	});
+
+	webhooks.on('issues.transferred', async ({ payload }) => {
+		// Delete from old repo, will be synced from new repo on next scheduled run
+		await deleteIssue(c.env.db, payload.issue.id);
+		console.log(`Issue transferred: ${payload.repository.full_name}#${payload.issue.number}`);
 	});
 
 	await webhooks.verifyAndReceive({

@@ -13,6 +13,10 @@
 	"observability": {
 		"enabled": true
 	},
+	"triggers": {
+		// Run every hour to sync GitHub issues
+		"crons": ["0 * * * *"]
+	},
 	"d1_databases": [
 		{
 			"binding": "db",
@@ -26,5 +30,23 @@
 			"binding": "kv",
 			"id": "b7bc559d37be47f4833c658e5ebc9a69"
 		}
-	]
+	],
+	"queues": {
+		// Queue for distributing repo sync jobs
+		"producers": [
+			{
+				"queue": "issues-sync-queue",
+				"binding": "issuesSyncQueue"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "issues-sync-queue",
+				"max_batch_size": 10,
+				"max_batch_timeout": 30,
+				"max_retries": 3,
+				"dead_letter_queue": "issues-sync-dlq"
+			}
+		]
+	}
 }
