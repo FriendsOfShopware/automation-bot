@@ -26,7 +26,7 @@ jobs:
         id: parse-args
         run: |
           ARGS='${{ steps.fetch-token.outputs.args }}'
-          SHOPWARE_VERSION=$(echo "$ARGS" | jq -r '.[0] // "6.6.8"')
+          SHOPWARE_VERSION=$(echo "$ARGS" | jq -r '.[0] // "6.7.6"')
           PHP_VERSION=$(echo "$ARGS" | jq -r '.[1] // "8.2"')
           echo "shopware-version=$SHOPWARE_VERSION" >> $GITHUB_OUTPUT
           echo "php-version=$PHP_VERSION" >> $GITHUB_OUTPUT
