@@ -45,12 +45,12 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 
 
 async function run() {
     try {
-        const res = await fetchWithRetry(`${actionsUrl}&audience=github-bot.fos.gg`, { headers: { 'Authorization': `Bearer ${actionsToken}` } }, 5);
+        const res = await fetchWithRetry(`${actionsUrl}&audience=dash.fos.gg`, { headers: { 'Authorization': `Bearer ${actionsToken}` } }, 5);
         const json = await res.json() as { value: string };
 
         info('Got OIDC token');
 
-        const data: TokenResponse = await (await fetch(`https://github-bot.fos.gg/api/token/generate/${getInput('id', {required: true})}`, {
+        const data: TokenResponse = await (await fetch(`https://dash.fos.gg/api/token/generate/${getInput('id', {required: true})}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

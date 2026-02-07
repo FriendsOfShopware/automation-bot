@@ -169,3 +169,7 @@ out
 
 .dev.vars
 .wrangler/
+
+# Vite build output
+
+dist/

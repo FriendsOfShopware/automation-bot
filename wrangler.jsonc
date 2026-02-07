@@ -1,17 +1,25 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "automation-bot",
-	"main": "src/index.ts",
+	"main": "./dist/index.js",
+	"assets": {
+		"directory": "./dist/frontend",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*", "/auth/*", "/webhook"]
+	},
 	"compatibility_date": "2024-11-12",
 	"compatibility_flags": ["nodejs_compat"],
 	"routes": [
 		{
-			"pattern": "github-bot.fos.gg",
+			"pattern": "dash.fos.gg",
 			"custom_domain": true
 		}
 	],
 	"observability": {
 		"enabled": true
+	},
+	"triggers": {
+		"crons": ["0 * * * *"]
 	},
 	"d1_databases": [
 		{
@@ -26,5 +34,9 @@
 			"binding": "kv",
 			"id": "b7bc559d37be47f4833c658e5ebc9a69"
 		}
-	]
+	],
+	"queues": {
+		"producers": [{ "binding": "ISSUE_SYNC_QUEUE", "queue": "issue-sync-queue" }],
+		"consumers": [{ "queue": "issue-sync-queue", "max_batch_size": 5, "max_batch_timeout": 30, "max_retries": 3, "dead_letter_queue": "issue-sync-dlq" }]
+	}
 }

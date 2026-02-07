@@ -13,6 +13,8 @@ export interface ExecutionRow {
 	base_repo: string;
 	pr_number: number | null;
 	args: string | null;
+	triggered_by: string;
+	trigger_source: string;
 	result: string | null;
 	created_at: string;
 	completed_at: string | null;
@@ -28,7 +30,7 @@ export function rowToExecutionContext(row: ExecutionRow): ExecutionContext {
 		headSha: row.head_sha,
 		baseOwner: row.base_owner,
 		baseRepo: row.base_repo,
-		prNumber: row.pr_number!,
-		args: row.args ? JSON.parse(row.args) : [],
+		prNumber: row.pr_number,
+		args: row.args ? JSON.parse(row.args) : {},
 	};
 }

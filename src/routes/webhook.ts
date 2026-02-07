@@ -1,7 +1,9 @@
 import { Hono } from "hono/tiny";
 import { Webhooks } from "@octokit/webhooks";
-import { getOctoClient } from "../github";
-import { commandRegistry } from "../commands";
+import { getOctoClient } from "../lib/github";
+import { commandRegistry } from "../lib/commands";
+import { dispatchCommand } from "../lib/dispatch";
+import { upsertIssue } from "../lib/upsert-issue";
 
 // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
 const DEFAULT_ALLOWED_COMMENTER_ASSOCIATIONS = new Set([
@@ -16,6 +18,26 @@ webhook.post('/', async c => {
 	const webhooks = new Webhooks({
 		secret: c.env.GITHUB_WEBHOOK_SECRET,
 	})
+
+	webhooks.on(['issues.opened', 'issues.reopened', 'issues.edited', 'issues.labeled', 'issues.unlabeled', 'issues.transferred'], async ({ payload }) => {
+		await upsertIssue(c.env.db, payload.repository.id, payload.issue as any, false);
+	});
+
+	webhooks.on(['issues.closed', 'issues.deleted'], async ({ payload }) => {
+		await c.env.db.prepare('DELETE FROM github_issues WHERE repo_id = ? AND number = ?')
+			.bind(payload.repository.id, payload.issue.number)
+			.run();
+	});
+
+	webhooks.on(['pull_request.opened', 'pull_request.reopened', 'pull_request.edited', 'pull_request.labeled', 'pull_request.unlabeled'], async ({ payload }) => {
+		await upsertIssue(c.env.db, payload.repository.id, payload.pull_request as any, true);
+	});
+
+	webhooks.on('pull_request.closed', async ({ payload }) => {
+		await c.env.db.prepare('DELETE FROM github_issues WHERE repo_id = ? AND number = ?')
+			.bind(payload.repository.id, payload.pull_request.number)
+			.run();
+	});
 
 	webhooks.on('issue_comment.created', async ({ payload }) => {
 		if (payload.comment.user?.type === 'Bot' || payload.issue.pull_request === undefined) {
@@ -34,7 +56,16 @@ webhook.post('/', async c => {
 
 		const parts = text.split(' ')
 		const commandName = parts[1]
-		const args = parts.slice(2)
+		const rawArgs = parts.slice(2)
+
+		// Parse args as key=value pairs
+		const args: Record<string, string> = {};
+		for (const arg of rawArgs) {
+			const eqIdx = arg.indexOf('=');
+			if (eqIdx !== -1) {
+				args[arg.slice(0, eqIdx)] = arg.slice(eqIdx + 1);
+			}
+		}
 
 		const command = commandRegistry.get(commandName)
 
@@ -57,51 +88,22 @@ webhook.post('/', async c => {
 			pull_number: payload.issue.number,
 		});
 
-		const workflows = await octo.request('GET /repos/{owner}/{repo}/actions/workflows', {
-			owner: 'FriendsOfShopware',
-			repo: 'automation-bot',
-		});
-
-		const workflowId = workflows.data.workflows.find(w => w.path === command.workflowPath)?.id
-
-		if (!workflowId) {
-			console.log('Workflow not found')
-			return
-		}
-
-		const uuid = crypto.randomUUID()
-
-		// Store in KV for token exchange (short-term)
-		await c.env.kv.put(uuid, JSON.stringify({
-			repository_id: pr.data.base.repo!!.id,
-		}), { expirationTtl: 10 * 60 })
-
-		// Store full execution context in D1
-		await c.env.db.prepare(`
-			INSERT INTO executions (id, command, status, repository_id, head_owner, head_repo, head_branch, head_sha, base_owner, base_repo, pr_number, args)
-			VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`).bind(
-			uuid,
+		await dispatchCommand({
+			env: c.env,
 			commandName,
-			pr.data.base.repo!!.id,
-			pr.data.head.repo!!.owner.login,
-			pr.data.head.repo!!.name,
-			pr.data.head.ref,
-			pr.data.head.sha,
-			pr.data.base.repo!!.owner.login,
-			pr.data.base.repo!!.name,
-			payload.issue.number,
-			args.length > 0 ? JSON.stringify(args) : null
-		).run();
-
-		await octo.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
-			owner: 'FriendsOfShopware',
-			repo: 'automation-bot',
-			workflow_id: workflowId,
-			ref: 'main',
-			inputs: {
-				id: uuid,
+			pr: {
+				repositoryId: pr.data.base.repo!!.id,
+				headOwner: pr.data.head.repo!!.owner.login,
+				headRepo: pr.data.head.repo!!.name,
+				headBranch: pr.data.head.ref,
+				headSha: pr.data.head.sha,
+				baseOwner: pr.data.base.repo!!.owner.login,
+				baseRepo: pr.data.base.repo!!.name,
 			},
+			prNumber: payload.issue.number,
+			args,
+			triggeredBy: payload.comment.user?.login ?? 'unknown',
+			triggerSource: 'webhook',
 		});
 	});
 

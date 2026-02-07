@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"module": "esnext",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"jsx": "preserve",
+		"noEmit": true,
+		"isolatedModules": true,
+		"skipLibCheck": true,
+		"lib": ["esnext", "dom", "dom.iterable"],
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.vue"]
+}

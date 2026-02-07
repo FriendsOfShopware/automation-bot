@@ -9,6 +9,10 @@ export const fixCs: Command<FixCsPayload> = {
 	workflowPath: ".github/workflows/csfixer.yml",
 
 	async postExecution(ctx: PostExecutionContext<FixCsPayload>): Promise<PostExecutionResult> {
+		if (!ctx.execution.prNumber) {
+			return { status: 'completed' };
+		}
+
 		if (ctx.payload.changes) {
 			await ctx.octo.request('POST /repos/{owner}/{repo}/issues/{issue_number}/comments', {
 				owner: ctx.execution.baseOwner,

@@ -1,8 +1,8 @@
 import { Hono } from "hono/tiny";
-import { getOctoClient } from "../github";
-import { commandRegistry } from "../commands";
-import { validateOidcToken } from "../auth";
-import { ExecutionRow, rowToExecutionContext } from "../execution";
+import { getOctoClient } from "../lib/github";
+import { commandRegistry } from "../lib/commands";
+import { validateOidcToken } from "../lib/auth";
+import { ExecutionRow, rowToExecutionContext } from "../lib/execution";
 
 const api = new Hono<{ Bindings: Env }>();
 

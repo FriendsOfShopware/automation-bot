@@ -39,7 +39,7 @@ async function run() {
 
 		// Get OIDC token
 		const res = await fetchWithRetry(
-			`${actionsUrl}&audience=github-bot.fos.gg`,
+			`${actionsUrl}&audience=dash.fos.gg`,
 			{ headers: { 'Authorization': `Bearer ${actionsToken}` } },
 			5
 		);
@@ -48,7 +48,7 @@ async function run() {
 		info('Got OIDC token');
 
 		// Send report to automation bot
-		const reportRes = await fetch(`https://github-bot.fos.gg/api/report/${id}`, {
+		const reportRes = await fetch(`https://dash.fos.gg/api/report/${id}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

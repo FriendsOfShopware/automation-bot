@@ -4,52 +4,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FriendsOfShopware Automation Bot - A Cloudflare Workers application that orchestrates GitHub Actions workflows for Shopware plugin development. It listens to GitHub webhook events (PR issue comments) and dispatches workflows based on bot commands.
+FriendsOfShopware Automation Bot - A Cloudflare Workers application that orchestrates GitHub Actions workflows for Shopware plugin development. It listens to GitHub webhook events (PR issue comments) and dispatches workflows based on bot commands. Includes a Vue 3 SPA dashboard for manual command dispatch.
 
 ## Development Commands
 
 ```bash
-npm run dev          # Start local development server with Wrangler
-npm test             # Run tests with Vitest
-npm run deploy       # Deploy to Cloudflare Workers
+npm run dev          # Start Wrangler dev server (backend)
+npm run dev:frontend # Start Vite dev server (frontend, proxies API to :8787)
+npm run build        # Build frontend (Vite) then backend (Hono/CF Workers)
+npm run deploy       # Build + deploy to Cloudflare Workers
 npm run cf-typegen   # Generate Cloudflare Worker environment types
 ```
 
 ## Architecture
 
-### Main Entry Point
+### Backend (`src/`)
 
-`/src/index.ts` - Single file Hono web application with three endpoints:
+**Entry point:** `src/index.ts` — Hono app with route registration.
 
-1. **POST /webhook** - GitHub webhook receiver
-   - Validates HMAC signature, processes `issue_comment.created` events
-   - Filters by author association (collaborators/members/owners only)
-   - Commands: `@frosh-automation fix-cs` or `@frosh-automation create-instance`
-   - Stores execution context in KV (10 min TTL), dispatches GitHub workflow
+**Public routes (no auth):**
+- `POST /webhook` — GitHub webhook receiver
+- `POST /api/token/generate/:id` — OIDC token exchange for workflows
+- `POST /api/token/delete/:id` — Token cleanup
+- `POST /api/report/:id` — Execution report from workflows
 
-2. **POST /api/token/generate/:id** - Token generation for workflows
-   - Validates GitHub Actions OIDC token
-   - Returns scoped GitHub app access token (contents:write for specific repo)
+**Auth routes (session middleware, no auth guard):**
+- `GET /auth/login` — GitHub OAuth redirect
+- `GET /auth/callback` — OAuth callback
+- `GET /auth/logout` — Session destroy
 
-3. **POST /api/token/delete/:id** - Token cleanup
-   - Cleans up tokens and KV storage after workflow completion
+**Protected API routes (session + auth guard):**
+- `GET /api/session` — Current user info
+- `GET /api/commands` — Available commands
+- `GET /api/repos` — Repository list (KV-cached)
+- `GET /api/repos/:owner/:repo/pulls` — Open PRs
+- `GET /api/repos/:owner/:repo/branches` — Branches
+- `GET /api/executions` — Recent executions
+- `POST /api/dispatch` — Dispatch a command (JSON body)
+
+**Lib files:** `src/lib/` — GitHub client, dispatch logic, commands, execution helpers, OIDC auth.
+
+### Frontend (`frontend/`)
+
+Vue 3 SPA with Vue Router, built with Vite. Uses Tailwind CSS + DaisyUI for styling, vue-select for searchable dropdowns.
+
+- `frontend/src/pages/Login.vue` — Login page
+- `frontend/src/pages/Dashboard.vue` — Dispatch form + execution table with 5s polling
+- `frontend/src/components/` — Navbar, DispatchForm, ExecutionTable
+- `frontend/src/api.ts` — Typed fetch wrappers for all API endpoints
 
 ### Custom GitHub Action
 
-`/actions/fetch-token/` - Node.js action used by dispatched workflows:
-- `main.ts`: Exchanges OIDC token for GitHub app token via the API
-- `post.ts`: Cleanup script to revoke token
+`/actions/fetch-token/` — Node.js action used by dispatched workflows.
 
 ### Dispatched Workflows
 
-- `.github/workflows/csfixer.yml` - Runs PHP-CS-Fixer on PRs
-- `.github/workflows/instance.yml` - Creates ephemeral Shopware dev instances
+- `.github/workflows/csfixer.yml` — Runs PHP-CS-Fixer on PRs
+- `.github/workflows/instance.yml` — Creates ephemeral Shopware dev instances
 
 ## Environment Configuration
 
 Requires these secrets (configured via Wrangler):
-- `APP_ID`, `PRIVATE_KEY`, `INSTALLATION_ID`, `WEBHOOK_SECRET` - GitHub App credentials
-- Cloudflare KV namespace binding for temporary state storage
+- `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`, `GITHUB_INSTALLATION_ID`, `GITHUB_WEBHOOK_SECRET` — GitHub App credentials
+- `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` — GitHub OAuth App
+- `AUTH_SECRET` — Session encryption key
+- Cloudflare KV namespace binding (`kv`) and D1 database binding (`db`)
 
 ## Code Style
 

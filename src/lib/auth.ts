@@ -7,7 +7,7 @@ export async function validateOidcToken(authHeader: string | undefined): Promise
 
 	const check = await parseJwt({
 		jwt: authHeader,
-		audience: 'github-bot.fos.gg',
+		audience: 'dash.fos.gg',
 		issuer: 'https://token.actions.githubusercontent.com',
 		resolveKey: async (key) => await getKey(key)
 	});

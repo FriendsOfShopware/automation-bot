@@ -1,0 +1,47 @@
+@import 'tailwindcss' source('../');
+
+html,
+body,
+#app {
+	min-height: 100%;
+	margin: 0;
+}
+
+body {
+	font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+	background-color: #f3f4f6;
+	color: #111827;
+}
+
+/* vue-select Tailwind-like styling */
+.vs__dropdown-toggle {
+	height: 2.5rem;
+	border: 1px solid #d1d5db;
+	border-radius: 0.5rem;
+	padding: 0 0.25rem;
+	background: #fff;
+}
+
+.vs--open .vs__dropdown-toggle,
+.vs__dropdown-toggle:focus-within {
+	border-color: #6366f1;
+	box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.vs__search,
+.vs__selected {
+	font-size: 0.875rem;
+	color: #111827;
+}
+
+.vs__dropdown-menu {
+	margin-top: 0.35rem;
+	border: 1px solid #e5e7eb;
+	border-radius: 0.5rem;
+	box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.vs__dropdown-option {
+	font-size: 0.875rem;
+	padding: 0.5rem 0.75rem;
+}
