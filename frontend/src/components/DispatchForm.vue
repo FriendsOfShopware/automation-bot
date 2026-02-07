@@ -8,6 +8,7 @@ const props = defineProps<{
 	commands: CommandInfo[];
 	message?: string | null;
 	error?: string | null;
+	isAuthenticated?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -70,6 +71,10 @@ async function loadRepos() {
 loadRepos();
 
 async function submit() {
+	if (!props.isAuthenticated) {
+		emit('error', 'Please login with GitHub to dispatch commands.');
+		return;
+	}
 	if (!selectedCommand.value || !selectedRepo.value) return;
 
 	submitting.value = true;
@@ -123,7 +128,24 @@ async function submit() {
 				{{ error }}
 			</div>
 
-			<form @submit.prevent="submit" class="space-y-4">
+			<div
+				v-if="!isAuthenticated"
+				class="rounded-xl border-2 border-indigo-300 bg-gradient-to-br from-indigo-50 to-blue-50 px-8 py-10 text-center"
+			>
+				<h3 class="text-2xl font-bold text-gray-900">Login Required</h3>
+				<p class="mx-auto mt-3 max-w-2xl text-base text-gray-600">
+					Sign in with your GitHub account to dispatch automation commands.
+					You must be a member of FriendsOfShopware to use this feature.
+				</p>
+				<a
+					href="/auth/login"
+					class="mt-6 inline-flex h-12 items-center rounded-lg bg-indigo-600 px-6 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+				>
+					Login with GitHub
+				</a>
+			</div>
+
+			<form v-else @submit.prevent="submit" class="space-y-4">
 				<div class="space-y-1.5">
 					<label for="command" class="text-sm font-medium text-gray-700">Command</label>
 					<select

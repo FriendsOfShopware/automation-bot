@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { getCommands, getExecutions, type CommandInfo, type Execution } from '../api';
+import { getCommands, getExecutions, type CommandInfo, type Execution, type Session } from '../api';
 import DispatchForm from '../components/DispatchForm.vue';
 import ExecutionTable from '../components/ExecutionTable.vue';
+
+defineProps<{ session?: Session | null }>();
 
 const commands = ref<CommandInfo[]>([]);
 const executions = ref<Execution[]>([]);
@@ -46,6 +48,7 @@ function onDispatchError(err: string) {
 			:commands="commands"
 			:message="message"
 			:error="error"
+			:is-authenticated="Boolean(session)"
 			@dispatched="onDispatched"
 			@error="onDispatchError"
 		/>

@@ -65,11 +65,11 @@ export interface DispatchResult {
 	error?: string;
 }
 
-async function fetchJSON<T>(url: string, opts?: RequestInit): Promise<T> {
+async function fetchJSON<T>(url: string, opts?: RequestInit, redirectOn401 = true): Promise<T> {
 	const resp = await fetch(url, opts);
 	if (resp.status === 401) {
 		const path = window.location.pathname;
-		if (path !== '/login' && !path.startsWith('/auth/')) {
+		if (redirectOn401 && path !== '/login' && !path.startsWith('/auth/')) {
 			window.location.href = '/login';
 		}
 		throw new Error('Unauthorized');
@@ -78,7 +78,7 @@ async function fetchJSON<T>(url: string, opts?: RequestInit): Promise<T> {
 }
 
 export async function getSession(): Promise<Session> {
-	return fetchJSON('/api/session');
+	return fetchJSON('/api/session', undefined, false);
 }
 
 export async function getCommands(): Promise<CommandInfo[]> {

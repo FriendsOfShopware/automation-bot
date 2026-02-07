@@ -20,7 +20,6 @@ app.route('/api', api); // token + report endpoints
 // Everything below requires session
 const dashboard = new Hono<DashboardEnv>();
 dashboard.use('*', sessionMiddleware);
-dashboard.use('*', authGuard);
 
 // Auth routes (session middleware needed, but auth guard exempts /auth/*)
 dashboard.route('/auth', auth);
@@ -36,7 +35,10 @@ dashboard.get('/api/session', async (c) => {
 dashboard.route('/api/repos', repos);
 dashboard.route('/api/executions', executions);
 dashboard.route('/api/commands', commands);
+dashboard.use('/api/dispatch', authGuard);
+dashboard.use('/api/dispatch/*', authGuard);
 dashboard.route('/api/dispatch', dispatch);
+dashboard.use('/api/sync', authGuard);
 dashboard.route('/api/kanban', kanban);
 dashboard.post('/api/sync', async (c) => {
 	await syncRepos(c.env);
