@@ -23,8 +23,8 @@ jobs:
         id: parse-args
         run: |
           ARGS='${{ steps.fetch-token.outputs.args }}'
-          PHP_VERSION=$(echo "$ARGS" | jq -r '.[0] // "8.2"')
-          RULES=$(echo "$ARGS" | jq -r '.[1] // "@PER-CS2.0,no_unused_imports"')
+          PHP_VERSION=$(echo "$ARGS" | jq -r '.["php-version"] // "8.2"')
+          RULES=$(echo "$ARGS" | jq -r '.["rules"] // "@PER-CS2.0,no_unused_imports"')
           echo "php-version=$PHP_VERSION" >> $GITHUB_OUTPUT
           echo "rules=$RULES" >> $GITHUB_OUTPUT
 
