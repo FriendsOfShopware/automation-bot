@@ -9,7 +9,7 @@
     "dev:frontend": "vite --config frontend/vite.config.ts",
     "build": "vite build --config frontend/vite.config.ts && vite build",
     "cf-typegen": "wrangler types",
-    "build-actions": "cd actions/fetch-token && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/post/main.ts --outdir=dist/post && cd ../report-data && bunx --bun esbuild --minify --platform=node --format=cjs --bundle src/main/main.ts --outdir=dist/main"
+    "build-actions": "cd actions/fetch-token && bunx --bun esbuild --minify --platform=node --format=esm --bundle src/main/main.ts --outdir=dist/main --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && bunx --bun esbuild --minify --platform=node --format=esm --bundle src/post/main.ts --outdir=dist/post --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\" && cd ../report-data && bunx --bun esbuild --minify --platform=node --format=esm --bundle src/main/main.ts --outdir=dist/main --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\""
   },
   "devDependencies": {
     "@actions/core": "^3.0.0",
