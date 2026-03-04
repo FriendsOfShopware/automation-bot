@@ -18,6 +18,7 @@ Creates an ephemeral Shopware instance with the plugin from the PR installed.
 |-----------|-------------|---------|
 | `shopware-version` | Shopware version to use (e.g., `6.6.8`, `6.5.0`) | `6.6.8` |
 
+
 **Examples:**
 ```
 @frosh-automation create-instance
