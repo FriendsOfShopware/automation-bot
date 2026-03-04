@@ -42,7 +42,6 @@ dashboard.use('/api/sync', authGuard);
 dashboard.route('/api/kanban', kanban);
 dashboard.post('/api/sync', async (c) => {
 	await syncRepos(c.env);
-	await enqueueIssueSyncs(c.env);
 	return c.json({ ok: true });
 });
 
@@ -52,7 +51,6 @@ export default {
 	fetch: app.fetch,
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
 		await syncRepos(env);
-		ctx.waitUntil(enqueueIssueSyncs(env));
 	},
 	async queue(batch: MessageBatch<IssueSyncMessage>, env: Env): Promise<void> {
 		for (const msg of batch.messages) {
