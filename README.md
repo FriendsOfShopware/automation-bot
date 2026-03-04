@@ -21,7 +21,7 @@ Creates an ephemeral Shopware instance with the plugin from the PR installed.
 **Examples:**
 ```
 @frosh-automation create-instance
-@frosh-automation create-instance 6.5.0
+@frosh-automation create-instance 6.6.0
 ```
 
 ## Development
