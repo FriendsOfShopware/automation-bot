@@ -71,6 +71,7 @@ jobs:
           instance-id: ${{ steps.create-cluster.outputs.instance-id }}
           namespace: default
           service: shopware
+          ingress: "noauth"
 
       - name: Wait for Container Startup
         run: |
