@@ -29,7 +29,7 @@ async function fetchDockerTags(kv: KVNamespace, registry: string, repo: string, 
 		}
 	}
 
-	const result = versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).slice(0, 10);
+	const result = versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 	await kv.put(cacheKey, JSON.stringify(result), { expirationTtl: DOCKER_TAGS_CACHE_TTL });
 
 	return result;
