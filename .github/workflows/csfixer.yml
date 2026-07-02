@@ -40,10 +40,13 @@ jobs:
           php-version: "${{ steps.parse-args.outputs.php-version }}"
           tools: php-cs-fixer
 
-      - name: Run CSFixer
+      - name: Install Shopware CLI
+        uses: FriendsOfShopware/shopware-cli-action@v3
+
+      - name: Run formatter
         id: csfixer
         run: |
-          php-cs-fixer fix . --rules="${{ steps.parse-args.outputs.rules }}"
+          shopware-cli extension format .
           if ! git diff HEAD --quiet; then
             githubUsername="frosh-automation"
             githubId="188718289"
